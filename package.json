@@ -1,0 +1,19 @@
+{
+  "name": "planeta40-scraper",
+  "version": "0.1.0",
+  "description": "Scraper de paquetes de aventura de Muntania, Baobabnature y Kannak con exportacion a Excel",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "postinstall": "playwright install chromium"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "playwright": "^1.47.0",
+    "xlsx": "^0.18.5"
+  }
+}

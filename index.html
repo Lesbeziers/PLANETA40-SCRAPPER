@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planeta 40 — Buscador de viajes</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Planeta 40</h1>
+    <p class="subtitle">Buscador de paquetes de aventura</p>
+  </header>
+
+  <main>
+    <section class="controls">
+      <button id="btn-scan" type="button">Escanear catálogos</button>
+      <button id="btn-export" type="button" disabled>Exportar selección a Excel</button>
+      <span id="status"></span>
+    </section>
+
+    <section class="results">
+      <table id="trips-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="select-all"></th>
+            <th>Empresa</th>
+            <th>Título</th>
+            <th>Destino</th>
+            <th>Precio</th>
+            <th>Duración</th>
+            <th>Salidas</th>
+          </tr>
+        </thead>
+        <tbody id="trips-body">
+          <tr class="empty"><td colspan="7">Pulsa "Escanear catálogos" para empezar.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
