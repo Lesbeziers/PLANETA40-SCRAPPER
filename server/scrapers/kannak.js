@@ -16,23 +16,27 @@ async function getTripUrls(browser, progress) {
   const ctx = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
   });
-  // Block heavy stuff to speed page up
+  // Block only images/media/fonts — Angular often needs CSS to render
   await ctx.route('**/*', (route) => {
     const type = route.request().resourceType();
-    if (['image', 'media', 'font', 'stylesheet'].includes(type)) return route.abort();
+    if (['image', 'media', 'font'].includes(type)) return route.abort();
     return route.continue();
   });
   const page = await ctx.newPage();
   try {
     progress({ source: 'Kannak', status: 'discovering' });
     await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
-    await page.waitForSelector('a[href*="/travel/"]', { timeout: PAGE_TIMEOUT });
-    // Give a bit more time for the full catalog to render
-    await page.waitForTimeout(3000);
+    // Wait until at least a handful of trip links exist
+    await page.waitForFunction(
+      () => document.querySelectorAll('a[href*="/travel/"]').length >= 5,
+      { timeout: PAGE_TIMEOUT }
+    ).catch(() => {});
+    await page.waitForTimeout(2500);
     const hrefs = await page.$$eval('a[href*="/travel/"]', els =>
       els.map(a => a.getAttribute('href')).filter(h => h && h.includes('/travel/'))
     );
-    const unique = [...new Set(hrefs.map(h => h.split('?')[0]))];
+    const unique = [...new Set(hrefs.map(h => h.split('?')[0]).filter(h => !/\/travel\/?$/.test(h)))];
+    console.log(`[Kannak] Catalogo: ${unique.length} URLs encontradas`);
     return unique.map(h => h.startsWith('http') ? h : BASE + h);
   } finally {
     await ctx.close();
@@ -45,7 +49,7 @@ async function scrapeTripPage(browser, url) {
   });
   await ctx.route('**/*', (route) => {
     const type = route.request().resourceType();
-    if (['image', 'media', 'font', 'stylesheet'].includes(type)) return route.abort();
+    if (['image', 'media', 'font'].includes(type)) return route.abort();
     return route.continue();
   });
   const page = await ctx.newPage();
