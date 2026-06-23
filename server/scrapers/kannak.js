@@ -4,8 +4,8 @@ const BASE = 'https://www.kannak.es';
 const CATALOG_URL = `${BASE}/es-es/search-result`;
 
 const MAX_TRIPS = parseInt(process.env.KANNAK_MAX_TRIPS || '20', 10);
-const CONCURRENCY = parseInt(process.env.KANNAK_CONCURRENCY || '3', 10);
-const PAGE_TIMEOUT = 30000;
+const CONCURRENCY = parseInt(process.env.KANNAK_CONCURRENCY || '2', 10);
+const PAGE_TIMEOUT = 60000;
 
 function cleanText(s) {
   if (!s) return '';
@@ -16,12 +16,19 @@ async function getTripUrls(browser, progress) {
   const ctx = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
   });
+  // Block heavy stuff to speed page up
+  await ctx.route('**/*', (route) => {
+    const type = route.request().resourceType();
+    if (['image', 'media', 'font', 'stylesheet'].includes(type)) return route.abort();
+    return route.continue();
+  });
   const page = await ctx.newPage();
   try {
     progress({ source: 'Kannak', status: 'discovering' });
-    await page.goto(CATALOG_URL, { waitUntil: 'networkidle', timeout: PAGE_TIMEOUT });
-    await page.waitForSelector('a[href*="/travel/"]', { timeout: PAGE_TIMEOUT }).catch(() => {});
-    await page.waitForTimeout(2000);
+    await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
+    await page.waitForSelector('a[href*="/travel/"]', { timeout: PAGE_TIMEOUT });
+    // Give a bit more time for the full catalog to render
+    await page.waitForTimeout(3000);
     const hrefs = await page.$$eval('a[href*="/travel/"]', els =>
       els.map(a => a.getAttribute('href')).filter(h => h && h.includes('/travel/'))
     );
@@ -36,10 +43,15 @@ async function scrapeTripPage(browser, url) {
   const ctx = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
   });
+  await ctx.route('**/*', (route) => {
+    const type = route.request().resourceType();
+    if (['image', 'media', 'font', 'stylesheet'].includes(type)) return route.abort();
+    return route.continue();
+  });
   const page = await ctx.newPage();
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
-    await page.waitForSelector('h1, h2', { timeout: PAGE_TIMEOUT }).catch(() => {});
+    await page.waitForSelector('h1', { timeout: PAGE_TIMEOUT }).catch(() => {});
     await page.waitForTimeout(1500);
 
     const data = await page.evaluate(() => {
