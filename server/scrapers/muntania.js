@@ -4,8 +4,8 @@ const BASE = 'https://muntania.com';
 const CATALOG_URL = `${BASE}/viaje/?estado=all`;
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36';
 
-const MAX_PAGES = parseInt(process.env.MUNTANIA_MAX_PAGES || '2', 10);
-const CONCURRENCY = 4;
+const MAX_PAGES = parseInt(process.env.MUNTANIA_MAX_PAGES || '10', 10);
+const CONCURRENCY = parseInt(process.env.MUNTANIA_CONCURRENCY || '6', 10);
 
 async function fetchHTML(url) {
   const res = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' });
@@ -42,30 +42,50 @@ function parseTrip(html, url) {
   const $ = cheerio.load(html);
 
   const titulo = cleanText($('h1.h1-ficha-viaje').first().text()) || cleanText($('title').text().split(' - ')[0]);
+
   const precioRaw = cleanText($('.price-detailed').first().text());
   const precioMatch = precioRaw.match(/([\d.,]+)\s*€/);
-  const precioDesde = precioMatch ? precioMatch[1].replace(/\./g, '').replace(',', '.') : '';
+  const precioDesde = precioMatch ? precioMatch[1].replace(/\./g, '').replace(/,/g, '.') : '';
 
   const ogImage = $('meta[property="og:image"]').attr('content') || '';
-  const descripcion = cleanText($('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '');
+  const descripcion = cleanText(
+    $('meta[name="description"]').attr('content') ||
+    $('meta[property="og:description"]').attr('content') || ''
+  );
 
-  const bodyText = $('body').text();
-  const duracionMatch = bodyText.match(/(\d+)\s*d[ií]as/i);
+  const meta = {};
+  $('.item-service-line').each((_, el) => {
+    const label = cleanText($(el).find('h2').text()).toLowerCase();
+    const value = cleanText($(el).find('p').text().replace(/⤤\s*Ver tabla/i, ''));
+    if (label && value) meta[label] = value;
+  });
+
+  const lugarRaw = meta['lugar'] || '';
+  const destino = cleanText(lugarRaw.split(',').map(s => s.trim()).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', '));
+
+  const duracionRaw = meta['duración'] || '';
+  const duracionMatch = duracionRaw.match(/(\d+)/);
   const duracion = duracionMatch ? duracionMatch[1] : '';
 
-  const nivelMatch = bodyText.match(/Nivel\s+([A-D])/);
-  const dificultad = nivelMatch ? `Nivel ${nivelMatch[1]}` : '';
+  const nivelRaw = meta['nivel'] || '';
+  const dificultad = nivelRaw ? `Nivel ${nivelRaw.replace(/[^A-D]/g, '')}` : '';
+
+  const epoca = meta['época del año'] || '';
 
   const salidasArr = [];
   $('#select-salidas option').each((_, el) => {
     const t = cleanText($(el).text());
     if (t && !/selecciona/i.test(t)) salidasArr.push(t);
   });
-  $('ul.ficha-listado-salidas li').each((_, el) => {
-    const t = cleanText($(el).text());
-    if (t && !/más información/i.test(t) && !/propón/i.test(t)) salidasArr.push(t);
-  });
-  const salidas = [...new Set(salidasArr)].join(' | ');
+  if (salidasArr.length === 0) {
+    $('ul.ficha-listado-salidas li').each((_, el) => {
+      const t = cleanText($(el).text());
+      if (t && !/más información/i.test(t) && !/propón/i.test(t) && !/^salidas/i.test(t)) {
+        salidasArr.push(t);
+      }
+    });
+  }
+  const salidas = salidasArr.join(' | ');
 
   const categorias = [];
   $('.cat-item a').each((_, el) => {
@@ -73,40 +93,37 @@ function parseTrip(html, url) {
     if (t) categorias.push(t);
   });
 
-  const sectionText = (titleRegex) => {
+  const findSection = (titleRegex, maxChars = 1200) => {
     let out = '';
-    $('h2, h3, h4, strong').each((_, el) => {
+    $('strong, b, h2, h3, h4').each((_, el) => {
       const t = cleanText($(el).text());
       if (titleRegex.test(t)) {
-        let n = $(el).parent();
-        let collected = '';
-        let next = n.next();
-        let safety = 0;
-        while (next.length && safety < 5) {
-          collected += ' ' + cleanText(next.text());
-          if (/^h[1-4]$/i.test(next[0].tagName)) break;
-          next = next.next();
-          safety++;
+        const collected = [];
+        let node = $(el).parent();
+        for (let i = 0; i < 8; i++) {
+          node = node.next();
+          if (!node.length) break;
+          const txt = cleanText(node.text());
+          if (!txt) continue;
+          if (/^(alojamiento|alimentaci|visado|tarjeta|telef|seguro|servicio de rescate|otras|transporte|incluye|no incluye|itinerario|programa)/i.test(txt) && txt.length < 60) break;
+          collected.push(txt);
+          if (collected.join(' ').length > maxChars) break;
         }
-        out = collected;
+        out = collected.join(' ').slice(0, maxChars);
         return false;
       }
     });
-    return cleanText(out).slice(0, 1500);
+    return out;
   };
 
-  const incluye = sectionText(/incluye/i);
-  const noIncluye = sectionText(/no\s*incluye/i);
-  const itinerario = sectionText(/programa|itinerario/i);
-  const alojamiento = sectionText(/alojamiento/i);
-  const transporte = sectionText(/transporte/i);
+  const incluye = findSection(/^\s*incluye\s*$/i) || findSection(/qué\s*incluye/i);
+  const noIncluye = findSection(/no\s*incluye/i);
+  const itinerario = cleanText($('#tab-faq, .tab-faq, [id*="programa"]').first().text()).slice(0, 2500);
+  const alojamiento = findSection(/^\s*alojamiento\s*$/i);
+  const transporte = findSection(/^\s*transporte\s*$/i);
 
-  const tituloLower = titulo.toLowerCase();
-  const paises = ['Kirguistán', 'Tanzania', 'Nepal', 'Marruecos', 'Noruega', 'Italia', 'Francia', 'España', 'Eslovenia', 'Bosnia', 'Portugal', 'Suiza', 'Canadá', 'EEUU', 'Estados Unidos'];
-  let destino = '';
-  for (const p of paises) {
-    if (tituloLower.includes(p.toLowerCase())) { destino = p; break; }
-  }
+  const estadoEl = $('.info-travel-status, .estado-viaje').first().text();
+  const estado = cleanText(estadoEl);
 
   return {
     empresa: 'Muntania',
@@ -128,9 +145,9 @@ function parseTrip(html, url) {
     transporte,
     guia: '',
     idioma: '',
-    categorias: categorias.join(', '),
+    categorias: [epoca, ...categorias].filter(Boolean).join(', '),
     imagen: ogImage,
-    estado: '',
+    estado,
   };
 }
 
