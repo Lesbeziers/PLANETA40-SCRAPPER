@@ -5,12 +5,24 @@ const CATALOG_URL = `${BASE}/viaje/?estado=all`;
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36';
 
 const MAX_PAGES = parseInt(process.env.MUNTANIA_MAX_PAGES || '10', 10);
-const CONCURRENCY = parseInt(process.env.MUNTANIA_CONCURRENCY || '6', 10);
+const CONCURRENCY = parseInt(process.env.MUNTANIA_CONCURRENCY || '3', 10);
+const RETRIES = 2;
 
-async function fetchHTML(url) {
-  const res = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' });
-  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
-  return await res.text();
+async function fetchHTML(url, retries = RETRIES) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml' },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+      return await res.text();
+    } catch (err) {
+      if (attempt === retries) throw err;
+      await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+    }
+  }
 }
 
 async function getTripUrls() {
