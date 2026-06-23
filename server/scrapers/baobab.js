@@ -225,15 +225,20 @@ async function runWithConcurrency(items, worker, concurrency) {
   return results.filter(Boolean);
 }
 
-async function scrapeBaobab() {
-  console.log('[Baobab] Obteniendo lista de viajes...');
+async function scrapeBaobab(onProgress) {
+  const progress = onProgress || (() => {});
+  progress({ source: 'Baobabnature', status: 'discovering' });
   const urls = await getTripUrls();
-  console.log(`[Baobab] ${urls.length} viajes encontrados, scrapeando...`);
+  progress({ source: 'Baobabnature', status: 'scraping', total: urls.length, done: 0 });
+  let done = 0;
   const trips = await runWithConcurrency(urls, async (url) => {
     const html = await fetchHTML(url);
-    return parseTrip(html, url);
+    const trip = parseTrip(html, url);
+    done++;
+    progress({ source: 'Baobabnature', status: 'scraping', total: urls.length, done });
+    return trip;
   }, CONCURRENCY);
-  console.log(`[Baobab] ${trips.length} viajes extraídos.`);
+  progress({ source: 'Baobabnature', status: 'done', total: trips.length });
   return trips;
 }
 

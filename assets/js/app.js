@@ -6,23 +6,48 @@ const selectAll = document.getElementById('select-all');
 
 let trips = [];
 
-btnScan.addEventListener('click', async () => {
+btnScan.addEventListener('click', () => {
   btnScan.disabled = true;
-  statusEl.textContent = 'Escaneando catálogos... esto puede tardar varios minutos.';
-  tbody.innerHTML = '<tr class="empty"><td colspan="7">Cargando...</td></tr>';
+  statusEl.innerHTML = '<span class="spinner"></span> Iniciando escaneo...';
+  tbody.innerHTML = '<tr class="empty"><td colspan="7">Buscando viajes...</td></tr>';
 
-  try {
-    const res = await fetch('/api/scan');
-    if (!res.ok) throw new Error('Error en el servidor: ' + res.status);
-    trips = await res.json();
+  const progressBySource = {};
+
+  const renderProgress = () => {
+    const parts = Object.entries(progressBySource).map(([source, p]) => {
+      if (p.status === 'pending') return `${source}: pendiente`;
+      if (p.status === 'discovering') return `${source}: buscando lista...`;
+      if (p.status === 'scraping') return `${source}: ${p.done}/${p.total}`;
+      if (p.status === 'done') return `${source}: ${p.total} ✓`;
+      if (p.status === 'error') return `${source}: error`;
+      return `${source}: ${p.status}`;
+    });
+    statusEl.innerHTML = '<span class="spinner"></span> ' + parts.join(' · ');
+  };
+
+  const es = new EventSource('/api/scan-stream');
+
+  es.addEventListener('progress', (e) => {
+    const p = JSON.parse(e.data);
+    if (p.source && p.source !== 'Sistema') {
+      progressBySource[p.source] = p;
+      renderProgress();
+    }
+  });
+
+  es.addEventListener('done', (e) => {
+    trips = JSON.parse(e.data);
     renderTrips();
-    statusEl.textContent = `${trips.length} viajes encontrados.`;
-  } catch (err) {
-    statusEl.textContent = 'Error: ' + err.message;
-    tbody.innerHTML = '<tr class="empty"><td colspan="7">No se pudo cargar.</td></tr>';
-  } finally {
+    statusEl.innerHTML = `${trips.length} viajes encontrados.`;
     btnScan.disabled = false;
-  }
+    es.close();
+  });
+
+  es.addEventListener('error', (e) => {
+    statusEl.textContent = 'Error de conexión. Reintenta.';
+    btnScan.disabled = false;
+    es.close();
+  });
 });
 
 btnExport.addEventListener('click', async () => {

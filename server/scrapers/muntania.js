@@ -169,15 +169,20 @@ async function runWithConcurrency(items, worker, concurrency) {
   return results.filter(Boolean);
 }
 
-async function scrapeMuntania() {
-  console.log('[Muntania] Obteniendo lista de viajes...');
+async function scrapeMuntania(onProgress) {
+  const progress = onProgress || (() => {});
+  progress({ source: 'Muntania', status: 'discovering' });
   const urls = await getTripUrls();
-  console.log(`[Muntania] ${urls.length} viajes encontrados, scrapeando...`);
+  progress({ source: 'Muntania', status: 'scraping', total: urls.length, done: 0 });
+  let done = 0;
   const trips = await runWithConcurrency(urls, async (url) => {
     const html = await fetchHTML(url);
-    return parseTrip(html, url);
+    const trip = parseTrip(html, url);
+    done++;
+    progress({ source: 'Muntania', status: 'scraping', total: urls.length, done });
+    return trip;
   }, CONCURRENCY);
-  console.log(`[Muntania] ${trips.length} viajes extraídos.`);
+  progress({ source: 'Muntania', status: 'done', total: trips.length });
   return trips;
 }
 
