@@ -110,14 +110,17 @@ function parseTrip(html, url) {
 
   let salidas = '';
   let duracion = '';
-  $('h4.et_pb_module_header span, h4.et_pb_module_header').each((_, el) => {
+  let estadoModule = '';
+  $('.et_pb_module_header span, .et_pb_module_header').each((_, el) => {
     const t = cleanText($(el).text());
-    if (!t) return;
-    if (/d[ií]a/i.test(t) && /destino|noches|días/i.test(t)) {
-      const m = t.match(/(\d+)/);
+    if (!t || t.length > 120) return;
+    if (/d[ií]as?\s*(en\s*destino|en\s*total|de\s*viaje|y\s*\d+\s*noches?)?/i.test(t) && /\d/.test(t)) {
+      const m = t.match(/(\d+)\s*d[ií]as?/i);
       if (m && !duracion) duracion = m[1];
-    } else if (/^del\s+\d|^[a-z]+\s+\d+\s+de\s+\w+/i.test(t) || /\d+\s+de\s+\w+/.test(t)) {
+    } else if (/^del\s+\d|del\s+\d+\s+de\s+\w+\s+al\s+\d+\s+de\s+\w+|\d+\s+de\s+\w+\s+al?\s+\d+\s+de\s+\w+/i.test(t)) {
       if (!salidas) salidas = t;
+    } else if (!estadoModule && /^(disponible|agotad|últimas plazas|grupo confirmado|reserva)/i.test(t)) {
+      estadoModule = t;
     }
   });
   if (!duracion) {
@@ -174,7 +177,7 @@ function parseTrip(html, url) {
   const guia = guiaMatch ? cleanText(guiaMatch[0]) : '';
 
   const estadoMatch = bodyText.match(/(plazas?\s+agotadas|grupo\s+confirmado|salida\s+confirmada|últimas\s+plazas)/i);
-  const estado = estadoMatch ? cleanText(estadoMatch[0]) : '';
+  const estado = estadoModule || (estadoMatch ? cleanText(estadoMatch[0]) : '');
 
   const destino = extractCountry(titulo, categoriasRaw);
 
