@@ -6,24 +6,41 @@ const selectAll = document.getElementById('select-all');
 
 let trips = [];
 
+const SOURCES = ['Muntania', 'Baobabnature', 'Kannak'];
+
 btnScan.addEventListener('click', () => {
   btnScan.disabled = true;
-  statusEl.innerHTML = '<span class="spinner"></span> Iniciando escaneo...';
   tbody.innerHTML = '<tr class="empty"><td colspan="7">Buscando viajes...</td></tr>';
 
   const progressBySource = {};
+  SOURCES.forEach(s => progressBySource[s] = { source: s, status: 'pending' });
 
   const renderProgress = () => {
-    const parts = Object.entries(progressBySource).map(([source, p]) => {
-      if (p.status === 'pending') return `${source}: pendiente`;
-      if (p.status === 'discovering') return `${source}: buscando lista...`;
-      if (p.status === 'scraping') return `${source}: ${p.done}/${p.total}`;
-      if (p.status === 'done') return `${source}: ${p.total} ✓`;
-      if (p.status === 'error') return `${source}: error`;
-      return `${source}: ${p.status}`;
-    });
-    statusEl.innerHTML = '<span class="spinner"></span> ' + parts.join(' · ');
+    const rows = SOURCES.map((source) => {
+      const p = progressBySource[source];
+      let label = '';
+      let pct = 0;
+      let cls = 'pending';
+      if (p.status === 'pending') { label = 'En espera'; cls = 'pending'; }
+      else if (p.status === 'discovering') { label = 'Buscando lista…'; cls = 'active'; pct = 5; }
+      else if (p.status === 'scraping') {
+        label = `${p.done}/${p.total}`;
+        pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
+        cls = 'active';
+      } else if (p.status === 'done') { label = `${p.total} ✓`; pct = 100; cls = 'done'; }
+      else if (p.status === 'error') { label = 'Error'; cls = 'error'; }
+      else { label = p.status; cls = 'active'; }
+      return `
+        <div class="progress-row">
+          <span class="progress-label">${source}</span>
+          <span class="progress-bar"><span class="progress-fill ${cls}" style="width:${pct}%"></span></span>
+          <span class="progress-value">${label}</span>
+        </div>`;
+    }).join('');
+    statusEl.innerHTML = rows;
   };
+
+  renderProgress();
 
   const es = new EventSource('/api/scan-stream');
 
@@ -38,13 +55,13 @@ btnScan.addEventListener('click', () => {
   es.addEventListener('done', (e) => {
     trips = JSON.parse(e.data);
     renderTrips();
-    statusEl.innerHTML = `${trips.length} viajes encontrados.`;
+    statusEl.innerHTML = `<div class="scan-summary">${trips.length} viajes encontrados.</div>`;
     btnScan.disabled = false;
     es.close();
   });
 
-  es.addEventListener('error', (e) => {
-    statusEl.textContent = 'Error de conexión. Reintenta.';
+  es.addEventListener('error', () => {
+    statusEl.innerHTML = '<div class="scan-summary error">Error de conexión. Reintenta.</div>';
     btnScan.disabled = false;
     es.close();
   });
