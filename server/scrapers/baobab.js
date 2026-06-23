@@ -108,26 +108,21 @@ function parseTrip(html, url) {
   const precioMatch = bodyText.match(/(?:PRECIO[^:]*:|desde)\s*([\d.,]+)\s*€/i) || bodyText.match(/([\d.,]+)\s*€/);
   if (precioMatch) precioDesde = precioMatch[1].replace(/\./g, '').replace(/,/g, '.');
 
-  const MESES_RE = '(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)';
-  const SALIDAS_RES = [
-    new RegExp(`^del\\s+\\d+`, 'i'),
-    new RegExp(`del\\s+\\d+\\s+de\\s+\\w+\\s+al\\s+\\d+\\s+de\\s+\\w+`, 'i'),
-    new RegExp(`\\d+\\s+de\\s+\\w+\\s+al?\\s+\\d+\\s+de\\s+\\w+`, 'i'),
-    new RegExp(`^\\d+\\s*[-–/]\\s*\\d+\\s+${MESES_RE}`, 'i'),
-    new RegExp(`${MESES_RE}\\s+\\d{4}`, 'i'),
-    new RegExp(`\\d+\\s+al\\s+\\d+\\s+de\\s+${MESES_RE}`, 'i'),
-  ];
+  // Detector simple de fechas: cualquier texto corto que contenga un mes en español + un número
+  const MES_RE = /(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)/i;
+  const isDateLike = (t) => t && t.length < 120 && /\d/.test(t) && MES_RE.test(t);
+  const isDurationLike = (t) => t && t.length < 60 && /^\d+\s*d[ií]as?(\s+(en\s+destino|en\s+total|de\s+viaje))?\s*$/i.test(t);
 
   let salidas = '';
   let duracion = '';
   let estadoModule = '';
-  $('.et_pb_module_header span, .et_pb_module_header').each((_, el) => {
+  $('.et_pb_module_header, .et_pb_module_header span').each((_, el) => {
     const t = cleanText($(el).text());
-    if (!t || t.length > 120) return;
-    if (/^\d+\s*d[ií]as?(\s+en\s+destino|\s+y\s+\d+\s+noches?)?$/i.test(t)) {
-      const m = t.match(/(\d+)\s*d[ií]as?/i);
-      if (m && !duracion) duracion = m[1];
-    } else if (!salidas && SALIDAS_RES.some(re => re.test(t))) {
+    if (!t) return;
+    if (!duracion && isDurationLike(t)) {
+      const m = t.match(/(\d+)/);
+      if (m) duracion = m[1];
+    } else if (!salidas && isDateLike(t)) {
       salidas = t;
     } else if (!estadoModule && /^(disponible|plazas?\s+disponibles?|agotad|últimas\s+plazas|grupo\s+confirmado|reserva)/i.test(t)) {
       estadoModule = t;
