@@ -1,3 +1,7 @@
+// Force Playwright to look for Chromium inside node_modules
+// (matches PLAYWRIGHT_BROWSERS_PATH=0 used at postinstall time)
+process.env.PLAYWRIGHT_BROWSERS_PATH = '0';
+
 const express = require('express');
 const path = require('path');
 const { scrapeMuntania } = require('./scrapers/muntania');
