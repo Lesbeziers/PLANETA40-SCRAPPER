@@ -28,6 +28,13 @@ header h1 {
   letter-spacing: -0.01em;
 }
 
+header .logo {
+  display: block;
+  height: 48px;
+  width: auto;
+  margin-bottom: 0.25rem;
+}
+
 .subtitle {
   margin: 0.25rem 0 0;
   color: var(--muted);
