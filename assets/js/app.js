@@ -131,27 +131,105 @@ selectAll.addEventListener('change', () => {
   updateExportButton();
 });
 
+const DETAIL_FIELDS = [
+  { key: 'descripcion', label: 'Descripción' },
+  { key: 'itinerario', label: 'Itinerario' },
+  { key: 'incluye', label: 'Qué incluye' },
+  { key: 'noIncluye', label: 'Qué NO incluye' },
+  { key: 'alojamiento', label: 'Alojamiento' },
+  { key: 'transporte', label: 'Transporte' },
+  { key: 'guia', label: 'Guía' },
+  { key: 'idioma', label: 'Idioma' },
+  { key: 'tipoViaje', label: 'Tipo de viaje' },
+  { key: 'dificultad', label: 'Dificultad' },
+  { key: 'tamanoGrupo', label: 'Tamaño del grupo' },
+  { key: 'categorias', label: 'Categorías' },
+  { key: 'estado', label: 'Estado / plazas' },
+];
+
 function renderTrips() {
   if (trips.length === 0) {
-    tbody.innerHTML = '<tr class="empty"><td colspan="7">No se encontraron viajes.</td></tr>';
+    tbody.innerHTML = '<tr class="empty"><td colspan="8">No se encontraron viajes.</td></tr>';
     return;
   }
-  tbody.innerHTML = trips.map((t, i) => `
-    <tr>
-      <td><input type="checkbox" id="row-${i}"></td>
-      <td>${escape(t.empresa)}</td>
-      <td><a href="${escape(t.url)}" target="_blank" rel="noopener">${escape(t.titulo)}</a></td>
-      <td>${escape(t.destino)}</td>
-      <td>${escape(t.precioDesde)}${t.precioHasta ? ' – ' + escape(t.precioHasta) : ''}</td>
-      <td>${escape(t.duracion)}</td>
-      <td>${escape(t.salidas)}</td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = trips.map((t, i) => {
+    const detailRows = DETAIL_FIELDS
+      .map(f => {
+        const value = t[f.key];
+        if (!value) return '';
+        return `
+          <dt>${escape(f.label)}</dt>
+          <dd>${escape(value)}</dd>`;
+      })
+      .filter(Boolean)
+      .join('');
 
+    const imagen = t.imagen
+      ? `<img src="${escape(t.imagen)}" alt="" class="detail-img" loading="lazy">`
+      : '';
+
+    return `
+      <tr class="trip-row" data-idx="${i}">
+        <td class="col-check"><input type="checkbox" id="row-${i}"></td>
+        <td class="col-toggle"><button class="toggle-btn" type="button" aria-label="Ver ficha">▸</button></td>
+        <td>${escape(t.empresa)}</td>
+        <td><a href="${escape(t.url)}" target="_blank" rel="noopener">${escape(t.titulo)}</a></td>
+        <td>${escape(t.destino)}</td>
+        <td>${escape(t.precioDesde)}${t.precioHasta ? ' – ' + escape(t.precioHasta) : ''}</td>
+        <td>${escape(t.duracion)}</td>
+        <td>${escape(t.salidas)}</td>
+      </tr>
+      <tr class="trip-detail" data-idx="${i}" hidden>
+        <td colspan="8">
+          <div class="detail-wrap">
+            ${imagen}
+            <dl class="detail-list">
+              ${detailRows || '<dt>—</dt><dd>No hay más datos disponibles.</dd>'}
+            </dl>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // Checkbox listeners
   document.querySelectorAll('#trips-body input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', updateExportButton);
   });
+
+  // Toggle listeners (click en fila o botón)
+  document.querySelectorAll('#trips-body .toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleDetailFromButton(btn);
+    });
+  });
+  document.querySelectorAll('#trips-body .trip-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('input, a, button')) return;
+      const btn = row.querySelector('.toggle-btn');
+      if (btn) toggleDetailFromButton(btn);
+    });
+  });
+
   updateExportButton();
+}
+
+function toggleDetailFromButton(btn) {
+  const row = btn.closest('.trip-row');
+  const idx = row.getAttribute('data-idx');
+  const detail = document.querySelector(`#trips-body .trip-detail[data-idx="${idx}"]`);
+  if (!detail) return;
+  const isOpen = !detail.hasAttribute('hidden');
+  if (isOpen) {
+    detail.setAttribute('hidden', '');
+    btn.textContent = '▸';
+    row.classList.remove('expanded');
+  } else {
+    detail.removeAttribute('hidden');
+    btn.textContent = '▾';
+    row.classList.add('expanded');
+  }
 }
 
 function updateExportButton() {
