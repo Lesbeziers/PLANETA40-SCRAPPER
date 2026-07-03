@@ -12,6 +12,39 @@ function cleanText(s) {
   return s.replace(/\s+/g, ' ').trim();
 }
 
+// Try to dismiss the cookie consent banner. Kannak uses a common IAB-style modal.
+async function acceptCookies(page) {
+  const selectors = [
+    'button:has-text("Aceptar todo")',
+    'button:has-text("Aceptar todas")',
+    'button:has-text("Aceptar")',
+    'button:has-text("Accept all")',
+    'button:has-text("Accept")',
+    'button:has-text("Estoy de acuerdo")',
+    'button:has-text("De acuerdo")',
+    '#didomi-notice-agree-button',
+    '.didomi-continue-without-agreeing',
+    '[data-testid="uc-accept-all-button"]',
+    '#onetrust-accept-btn-handler',
+    '.qc-cmp2-summary-buttons button.css-1litn2v',
+    '[aria-label*="ceptar" i]',
+    '[class*="accept" i]',
+  ];
+  for (const sel of selectors) {
+    try {
+      const btn = await page.waitForSelector(sel, { timeout: 2500, state: 'visible' });
+      if (btn) {
+        await btn.click({ timeout: 3000 }).catch(() => {});
+        console.log(`[Kannak] Cookies aceptadas con selector: ${sel}`);
+        await page.waitForTimeout(1500);
+        return true;
+      }
+    } catch { /* ignore */ }
+  }
+  console.log('[Kannak] No se encontró banner de cookies o ya estaba aceptado');
+  return false;
+}
+
 async function getTripUrls(browser, progress) {
   const ctx = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
@@ -27,6 +60,9 @@ async function getTripUrls(browser, progress) {
   try {
     progress({ source: 'Kannak', status: 'discovering' });
     await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
+
+    // Dismiss cookie consent banner (probamos varios formatos comunes)
+    await acceptCookies(page);
 
     // Try to wait for content, be tolerant if it times out
     await page.waitForFunction(
