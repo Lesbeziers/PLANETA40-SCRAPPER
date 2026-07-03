@@ -58,23 +58,30 @@ function startBackgroundScan() {
   };
 
   (async () => {
-    try {
-      const results = await Promise.allSettled([
-        scrapeMuntania(onProgress),
-        scrapeBaobab(onProgress),
-        scrapeKannak(onProgress),
-      ]);
-      const trips = results.flatMap((r, i) => {
-        const empresa = ['Muntania', 'Baobabnature', 'Kannak'][i];
-        if (r.status === 'fulfilled') return r.value;
-        console.error(`Error en scraper ${empresa}:`, r.reason);
+    const trips = [];
+    const runScraper = async (empresa, fn) => {
+      try {
+        const result = await fn(onProgress);
+        trips.push(...result);
+      } catch (err) {
+        console.error(`Error en scraper ${empresa}:`, err);
         scan.progressBySource[empresa] = {
           source: empresa,
           status: 'error',
-          error: r.reason?.message || String(r.reason),
+          error: err?.message || String(err),
         };
-        return [];
-      });
+      }
+    };
+
+    try {
+      // Fase 1: Muntania + Baobab en paralelo (HTTP ligero, sin Chromium)
+      await Promise.all([
+        runScraper('Muntania', scrapeMuntania),
+        runScraper('Baobabnature', scrapeBaobab),
+      ]);
+      // Fase 2: Kannak solo (usa Chromium, pesado en memoria)
+      await runScraper('Kannak', scrapeKannak);
+
       scan.trips = trips;
       scan.status = 'done';
     } catch (err) {

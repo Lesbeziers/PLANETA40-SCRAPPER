@@ -4,7 +4,7 @@ const BASE = 'https://www.kannak.es';
 const CATALOG_URL = `${BASE}/es-es/search-result`;
 
 const MAX_TRIPS = parseInt(process.env.KANNAK_MAX_TRIPS || '20', 10);
-const CONCURRENCY = parseInt(process.env.KANNAK_CONCURRENCY || '2', 10);
+const CONCURRENCY = parseInt(process.env.KANNAK_CONCURRENCY || '1', 10);
 const PAGE_TIMEOUT = 60000;
 
 function cleanText(s) {
