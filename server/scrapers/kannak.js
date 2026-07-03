@@ -15,8 +15,9 @@ function cleanText(s) {
 async function getTripUrls(browser, progress) {
   const ctx = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+    viewport: { width: 1280, height: 900 },
+    locale: 'es-ES',
   });
-  // Block only images/media/fonts — Angular often needs CSS to render
   await ctx.route('**/*', (route) => {
     const type = route.request().resourceType();
     if (['image', 'media', 'font'].includes(type)) return route.abort();
@@ -26,12 +27,33 @@ async function getTripUrls(browser, progress) {
   try {
     progress({ source: 'Kannak', status: 'discovering' });
     await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
-    // Wait until at least a handful of trip links exist
+
+    // Try to wait for content, be tolerant if it times out
     await page.waitForFunction(
       () => document.querySelectorAll('a[href*="/travel/"]').length >= 5,
       { timeout: PAGE_TIMEOUT }
-    ).catch(() => {});
-    await page.waitForTimeout(2500);
+    ).catch(() => console.log('[Kannak] waitForFunction timeout, seguimos'));
+
+    // Trigger lazy-load by scrolling
+    await page.evaluate(async () => {
+      for (let i = 0; i < 5; i++) {
+        window.scrollBy(0, window.innerHeight);
+        await new Promise(r => setTimeout(r, 400));
+      }
+    });
+    await page.waitForTimeout(2000);
+
+    // Diagnostic info
+    const diag = await page.evaluate(() => ({
+      title: document.title,
+      bodyLen: document.body ? document.body.innerText.length : 0,
+      bodyStart: document.body ? document.body.innerText.slice(0, 200) : '',
+      allLinks: document.querySelectorAll('a').length,
+      travelLinks: document.querySelectorAll('a[href*="/travel/"]').length,
+    }));
+    console.log(`[Kannak] Diag: title="${diag.title}" allLinks=${diag.allLinks} travelLinks=${diag.travelLinks} bodyLen=${diag.bodyLen}`);
+    console.log(`[Kannak] Body preview: ${diag.bodyStart.replace(/\n/g, ' ').slice(0, 200)}`);
+
     const hrefs = await page.$$eval('a[href*="/travel/"]', els =>
       els.map(a => a.getAttribute('href')).filter(h => h && h.includes('/travel/'))
     );
