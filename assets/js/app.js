@@ -7,64 +7,90 @@ const selectAll = document.getElementById('select-all');
 let trips = [];
 
 const SOURCES = ['Muntania', 'Baobabnature', 'Kannak'];
+let pollTimer = null;
 
-btnScan.addEventListener('click', () => {
+function renderProgress(progressBySource) {
+  const rows = SOURCES.map((source) => {
+    const p = progressBySource[source] || { status: 'pending' };
+    let label = '';
+    let pct = 0;
+    let cls = 'pending';
+    if (p.status === 'pending') { label = 'En espera'; cls = 'pending'; }
+    else if (p.status === 'discovering') { label = 'Buscando lista…'; cls = 'active'; pct = 5; }
+    else if (p.status === 'scraping') {
+      label = `${p.done}/${p.total}`;
+      pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
+      cls = 'active';
+    } else if (p.status === 'done') { label = `${p.total} ✓`; pct = 100; cls = 'done'; }
+    else if (p.status === 'error') { label = 'Error'; cls = 'error'; }
+    else { label = p.status; cls = 'active'; }
+    return `
+      <div class="progress-row">
+        <span class="progress-label">${source}</span>
+        <span class="progress-bar"><span class="progress-fill ${cls}" style="width:${pct}%"></span></span>
+        <span class="progress-value">${label}</span>
+      </div>`;
+  }).join('');
+  statusEl.innerHTML = rows;
+}
+
+async function pollStatus() {
+  try {
+    const res = await fetch('/api/scan/status');
+    if (!res.ok) throw new Error('status ' + res.status);
+    const data = await res.json();
+    renderProgress(data.progressBySource || {});
+    if (data.status === 'done') {
+      trips = data.trips || [];
+      renderTrips();
+      statusEl.innerHTML = `<div class="scan-summary">${trips.length} viajes encontrados.</div>`;
+      btnScan.disabled = false;
+      clearInterval(pollTimer);
+      pollTimer = null;
+    } else if (data.status === 'error') {
+      statusEl.innerHTML = `<div class="scan-summary error">Error: ${data.error || 'desconocido'}</div>`;
+      btnScan.disabled = false;
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  } catch (err) {
+    // Ignoramos errores transitorios — el próximo poll reintenta
+    console.warn('poll fail:', err.message);
+  }
+}
+
+btnScan.addEventListener('click', async () => {
   btnScan.disabled = true;
   tbody.innerHTML = '<tr class="empty"><td colspan="7">Buscando viajes...</td></tr>';
+  renderProgress({});
+  try {
+    const r = await fetch('/api/scan/start', { method: 'POST' });
+    if (!r.ok) throw new Error('start ' + r.status);
+  } catch (err) {
+    statusEl.innerHTML = `<div class="scan-summary error">No se pudo iniciar: ${err.message}</div>`;
+    btnScan.disabled = false;
+    return;
+  }
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollStatus, 2000);
+  pollStatus();
+});
 
-  const progressBySource = {};
-  SOURCES.forEach(s => progressBySource[s] = { source: s, status: 'pending' });
-
-  const renderProgress = () => {
-    const rows = SOURCES.map((source) => {
-      const p = progressBySource[source];
-      let label = '';
-      let pct = 0;
-      let cls = 'pending';
-      if (p.status === 'pending') { label = 'En espera'; cls = 'pending'; }
-      else if (p.status === 'discovering') { label = 'Buscando lista…'; cls = 'active'; pct = 5; }
-      else if (p.status === 'scraping') {
-        label = `${p.done}/${p.total}`;
-        pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
-        cls = 'active';
-      } else if (p.status === 'done') { label = `${p.total} ✓`; pct = 100; cls = 'done'; }
-      else if (p.status === 'error') { label = 'Error'; cls = 'error'; }
-      else { label = p.status; cls = 'active'; }
-      return `
-        <div class="progress-row">
-          <span class="progress-label">${source}</span>
-          <span class="progress-bar"><span class="progress-fill ${cls}" style="width:${pct}%"></span></span>
-          <span class="progress-value">${label}</span>
-        </div>`;
-    }).join('');
-    statusEl.innerHTML = rows;
-  };
-
-  renderProgress();
-
-  const es = new EventSource('/api/scan-stream');
-
-  es.addEventListener('progress', (e) => {
-    const p = JSON.parse(e.data);
-    if (p.source && p.source !== 'Sistema') {
-      progressBySource[p.source] = p;
-      renderProgress();
+// Al abrir la página, comprueba si ya hay un escaneo en marcha
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const r = await fetch('/api/scan/status');
+    const data = await r.json();
+    if (data.status === 'running') {
+      btnScan.disabled = true;
+      renderProgress(data.progressBySource || {});
+      pollTimer = setInterval(pollStatus, 2000);
+    } else if (data.status === 'done' && data.trips) {
+      trips = data.trips;
+      renderTrips();
+      statusEl.innerHTML = `<div class="scan-summary">${trips.length} viajes del último escaneo. Pulsa "Escanear catálogos" para uno nuevo.</div>`;
     }
-  });
-
-  es.addEventListener('done', (e) => {
-    trips = JSON.parse(e.data);
-    renderTrips();
-    statusEl.innerHTML = `<div class="scan-summary">${trips.length} viajes encontrados.</div>`;
-    btnScan.disabled = false;
-    es.close();
-  });
-
-  es.addEventListener('error', () => {
-    statusEl.innerHTML = '<div class="scan-summary error">Error de conexión. Reintenta.</div>';
-    btnScan.disabled = false;
-    es.close();
-  });
+  } catch { /* no problem */ }
 });
 
 btnExport.addEventListener('click', async () => {

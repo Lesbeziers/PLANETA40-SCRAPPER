@@ -36,46 +36,71 @@ app.get('/api/scan', async (req, res) => {
   }
 });
 
-app.get('/api/scan-stream', async (req, res) => {
-  res.set({
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
-  res.flushHeaders();
+// In-memory scan state — sobrevive a desconexiones del cliente
+let currentScan = null; // { id, status, progressBySource, trips, error, startedAt }
 
-  const send = (event, data) => {
-    res.write(`event: ${event}\n`);
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+function startBackgroundScan() {
+  const id = String(Date.now());
+  const scan = {
+    id,
+    status: 'running',
+    progressBySource: {},
+    trips: null,
+    error: null,
+    startedAt: new Date().toISOString(),
+  };
+  currentScan = scan;
+
+  const onProgress = (p) => {
+    if (p.source && p.source !== 'Sistema') {
+      scan.progressBySource[p.source] = p;
+    }
   };
 
-  const keepAlive = setInterval(() => res.write(':keepalive\n\n'), 15000);
+  (async () => {
+    try {
+      const results = await Promise.allSettled([
+        scrapeMuntania(onProgress),
+        scrapeBaobab(onProgress),
+        scrapeKannak(onProgress),
+      ]);
+      const trips = results.flatMap((r, i) => {
+        const empresa = ['Muntania', 'Baobabnature', 'Kannak'][i];
+        if (r.status === 'fulfilled') return r.value;
+        console.error(`Error en scraper ${empresa}:`, r.reason);
+        scan.progressBySource[empresa] = {
+          source: empresa,
+          status: 'error',
+          error: r.reason?.message || String(r.reason),
+        };
+        return [];
+      });
+      scan.trips = trips;
+      scan.status = 'done';
+    } catch (err) {
+      console.error('Scan crashed:', err);
+      scan.error = err.message;
+      scan.status = 'error';
+    }
+  })();
 
-  const onProgress = (p) => send('progress', p);
+  return scan;
+}
 
-  try {
-    send('progress', { source: 'Sistema', status: 'starting' });
-    const results = await Promise.allSettled([
-      scrapeMuntania(onProgress),
-      scrapeBaobab(onProgress),
-      scrapeKannak(onProgress),
-    ]);
-    const trips = results.flatMap((r, i) => {
-      const empresa = ['Muntania', 'Baobabnature', 'Kannak'][i];
-      if (r.status === 'fulfilled') return r.value;
-      console.error(`Error en scraper ${empresa}:`, r.reason);
-      send('progress', { source: empresa, status: 'error', error: r.reason?.message || String(r.reason) });
-      return [];
-    });
-    send('done', trips);
-  } catch (err) {
-    console.error(err);
-    send('error', { message: err.message });
-  } finally {
-    clearInterval(keepAlive);
-    res.end();
+app.post('/api/scan/start', (req, res) => {
+  if (currentScan && currentScan.status === 'running') {
+    return res.json({ id: currentScan.id, alreadyRunning: true });
   }
+  const scan = startBackgroundScan();
+  res.json({ id: scan.id });
+});
+
+app.get('/api/scan/status', (req, res) => {
+  if (!currentScan) return res.json({ status: 'idle' });
+  const { id, status, progressBySource, error, startedAt } = currentScan;
+  const payload = { id, status, progressBySource, error, startedAt };
+  if (status === 'done') payload.trips = currentScan.trips;
+  res.json(payload);
 });
 
 app.post('/api/export', (req, res) => {
