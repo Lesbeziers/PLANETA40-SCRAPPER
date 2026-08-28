@@ -165,21 +165,26 @@ function parseTrip(html, url) {
 
   let alojamiento = '';
   let transporte = '';
+  let guia = '';
+  let coordinador = '';
   $('.et_pb_toggle').each((_, el) => {
     const title = cleanText($(el).find('.et_pb_toggle_title').text()).toLowerCase();
     const content = cleanText($(el).find('.et_pb_toggle_content').text());
     if (!alojamiento && /alojamiento|hotel|hospedaje/i.test(title)) alojamiento = content.slice(0, 800);
     if (!transporte && /transporte|traslado|vuelo|chófer/i.test(title)) transporte = content.slice(0, 800);
+    if (!guia && /gu[ií]as?\s+local|gu[ií]as?\b/i.test(title)) guia = content.slice(0, 800);
+    if (!coordinador && /coordinador|acompa[ñn]ante/i.test(title)) coordinador = content.slice(0, 400);
   });
+  if (!guia && coordinador) guia = coordinador;
 
   const grupoMatch = bodyText.match(/(\d+\s*-\s*\d+\s*personas|grupos?\s+de\s+\d+|hasta\s+\d+\s+personas)/i);
   const tamanoGrupo = grupoMatch ? cleanText(grupoMatch[0]) : '';
 
-  const idiomaMatch = bodyText.match(/(hispanohablante|en\s+español|gu[ií]a\s+local\s+\w+)/i);
-  const idioma = idiomaMatch ? (/hispanohablante|español/i.test(idiomaMatch[0]) ? 'Español' : cleanText(idiomaMatch[0])) : '';
-
-  const guiaMatch = bodyText.match(/gu[ií]a[s]?\s+local[^.]{0,80}/i);
-  const guia = guiaMatch ? cleanText(guiaMatch[0]) : '';
+  const idiomaSearchText = `${guia} ${coordinador} ${bodyText}`;
+  let idioma = '';
+  if (/english[- ]speaking|en\s+ingl[eé]s|habla\s+inglesa/i.test(idiomaSearchText)) idioma = 'Inglés';
+  else if (/habla\s+hispana|hispanohablante|en\s+español|en\s+castellano/i.test(idiomaSearchText)) idioma = 'Español';
+  else idioma = 'Español'; // Baobab es empresa española; sus fichas suelen omitir el idioma cuando es el habitual
 
   const estadoMatch = bodyText.match(/(plazas?\s+agotadas|grupo\s+confirmado|salida\s+confirmada|últimas\s+plazas)/i);
   const estado = estadoModule || (estadoMatch ? cleanText(estadoMatch[0]) : '');
@@ -230,10 +235,18 @@ async function runWithConcurrency(items, worker, concurrency) {
   return results.filter(Boolean);
 }
 
-async function scrapeBaobab(onProgress) {
+function extractTripUrlsFromHtml(html) {
+  const urls = new Set();
+  const matches = html.match(/href="(https:\/\/baobabnature\.com)?\/viaje-a\/[^"#?\/]+\/"/g) || [];
+  for (const m of matches) {
+    const path = m.match(/\/viaje-a\/[^"#?\/]+\//)[0];
+    urls.add(BASE + path);
+  }
+  return [...urls];
+}
+
+async function scrapeUrls(urls, onProgress) {
   const progress = onProgress || (() => {});
-  progress({ source: 'Baobabnature', status: 'discovering' });
-  const urls = await getTripUrls();
   progress({ source: 'Baobabnature', status: 'scraping', total: urls.length, done: 0 });
   let done = 0;
   const trips = await runWithConcurrency(urls, async (url) => {
@@ -247,4 +260,19 @@ async function scrapeBaobab(onProgress) {
   return trips;
 }
 
-module.exports = { scrapeBaobab };
+async function scrapeBaobab(onProgress) {
+  const progress = onProgress || (() => {});
+  progress({ source: 'Baobabnature', status: 'discovering' });
+  const urls = await getTripUrls();
+  return scrapeUrls(urls, progress);
+}
+
+async function scrapeBaobabFromCatalogUrl(catalogUrl, onProgress) {
+  const progress = onProgress || (() => {});
+  progress({ source: 'Baobabnature', status: 'discovering' });
+  const html = await fetchHTML(catalogUrl);
+  const urls = extractTripUrlsFromHtml(html);
+  return scrapeUrls(urls, progress);
+}
+
+module.exports = { scrapeBaobab, scrapeBaobabFromCatalogUrl };

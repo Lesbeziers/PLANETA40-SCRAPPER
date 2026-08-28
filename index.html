@@ -15,9 +15,22 @@
   <main>
     <section class="controls">
       <button id="btn-scan" type="button">Escanear catálogos</button>
+      <button id="btn-open-urls" type="button">Escanear desde URL</button>
       <button id="btn-export" type="button" disabled>Exportar selección a Excel</button>
       <span id="status"></span>
     </section>
+
+    <dialog id="urls-dialog" class="urls-dialog">
+      <form method="dialog" class="urls-dialog-form">
+        <h2>Escanear desde URL</h2>
+        <p class="hint">Pega una URL de listado o categoría por línea (Baobabnature o Muntania). Los viajes encontrados se añaden a la tabla actual.</p>
+        <textarea id="urls-input" rows="5" placeholder="https://baobabnature.com/categoria-viaje/fechas/navidad-2026/"></textarea>
+        <div class="urls-dialog-actions">
+          <button type="button" id="btn-urls-cancel" class="btn-secondary">Cancelar</button>
+          <button type="button" id="btn-scan-urls" class="btn-primary">Escanear</button>
+        </div>
+      </form>
+    </dialog>
 
     <section class="results">
       <table id="trips-table">

@@ -66,13 +66,15 @@ button:not(:disabled):hover {
   background: #f0f0ea;
 }
 
-#btn-scan {
+#btn-scan,
+#btn-open-urls {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
 }
 
-#btn-scan:hover:not(:disabled) {
+#btn-scan:hover:not(:disabled),
+#btn-open-urls:hover:not(:disabled) {
   background: #235a3f;
 }
 
@@ -257,4 +259,85 @@ tbody tr.trip-row.expanded { background: #eef4f0; }
   .detail-img { width: 100%; max-height: 180px; }
   .detail-list { grid-template-columns: 1fr; gap: 0.2rem; }
   .detail-list dt { margin-top: 0.5rem; }
+}
+
+.urls-dialog {
+  border: none;
+  border-radius: 8px;
+  padding: 0;
+  max-width: 560px;
+  width: calc(100% - 2rem);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+.urls-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.urls-dialog-form {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.urls-dialog h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--fg);
+}
+
+.urls-dialog .hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.urls-dialog textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem;
+  border: 1px solid var(--border, #e4e4e0);
+  border-radius: 4px;
+  resize: vertical;
+  min-height: 100px;
+}
+
+.urls-dialog textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.urls-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.urls-dialog .btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 0.55rem 1.1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.urls-dialog .btn-secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border, #e4e4e0);
+  padding: 0.55rem 1.1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.urls-dialog .btn-secondary:hover {
+  background: #f0f0ee;
 }

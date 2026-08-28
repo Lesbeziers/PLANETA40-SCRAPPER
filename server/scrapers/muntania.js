@@ -181,10 +181,19 @@ async function runWithConcurrency(items, worker, concurrency) {
   return results.filter(Boolean);
 }
 
-async function scrapeMuntania(onProgress) {
+function extractTripUrlsFromHtml(html) {
+  const urls = new Set();
+  const matches = html.match(/href="(https:\/\/muntania\.com)?\/viaje\/[^"#?\/]+\/"/g) || [];
+  for (const m of matches) {
+    const path = m.match(/\/viaje\/[^"#?\/]+\//)[0];
+    if (path === '/viaje/') continue;
+    urls.add(BASE + path);
+  }
+  return [...urls];
+}
+
+async function scrapeUrls(urls, onProgress) {
   const progress = onProgress || (() => {});
-  progress({ source: 'Muntania', status: 'discovering' });
-  const urls = await getTripUrls();
   progress({ source: 'Muntania', status: 'scraping', total: urls.length, done: 0 });
   let done = 0;
   const trips = await runWithConcurrency(urls, async (url) => {
@@ -198,4 +207,19 @@ async function scrapeMuntania(onProgress) {
   return trips;
 }
 
-module.exports = { scrapeMuntania };
+async function scrapeMuntania(onProgress) {
+  const progress = onProgress || (() => {});
+  progress({ source: 'Muntania', status: 'discovering' });
+  const urls = await getTripUrls();
+  return scrapeUrls(urls, progress);
+}
+
+async function scrapeMuntaniaFromCatalogUrl(catalogUrl, onProgress) {
+  const progress = onProgress || (() => {});
+  progress({ source: 'Muntania', status: 'discovering' });
+  const html = await fetchHTML(catalogUrl);
+  const urls = extractTripUrlsFromHtml(html);
+  return scrapeUrls(urls, progress);
+}
+
+module.exports = { scrapeMuntania, scrapeMuntaniaFromCatalogUrl };

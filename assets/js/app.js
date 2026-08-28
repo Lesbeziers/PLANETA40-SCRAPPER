@@ -1,13 +1,29 @@
 const btnScan = document.getElementById('btn-scan');
+const btnOpenUrls = document.getElementById('btn-open-urls');
+const btnScanUrls = document.getElementById('btn-scan-urls');
+const btnUrlsCancel = document.getElementById('btn-urls-cancel');
+const urlsDialog = document.getElementById('urls-dialog');
+const urlsInput = document.getElementById('urls-input');
 const btnExport = document.getElementById('btn-export');
 const statusEl = document.getElementById('status');
 const tbody = document.getElementById('trips-body');
 const selectAll = document.getElementById('select-all');
 
+btnOpenUrls.addEventListener('click', () => {
+  if (typeof urlsDialog.showModal === 'function') urlsDialog.showModal();
+  else urlsDialog.setAttribute('open', ''); // fallback si no soporta <dialog>
+  setTimeout(() => urlsInput.focus(), 50);
+});
+
+btnUrlsCancel.addEventListener('click', () => {
+  urlsDialog.close();
+});
+
 let trips = [];
 
 const SOURCES = ['Muntania', 'Baobabnature', 'Kannak'];
 let pollTimer = null;
+let scanMode = 'full';
 
 function renderProgress(progressBySource) {
   const rows = SOURCES.map((source) => {
@@ -41,15 +57,27 @@ async function pollStatus() {
     const data = await res.json();
     renderProgress(data.progressBySource || {});
     if (data.status === 'done') {
-      trips = data.trips || [];
+      const incoming = data.trips || [];
+      const mode = data.mode || scanMode;
+      if (mode === 'urls') {
+        const existing = new Set(trips.map(t => t.url));
+        const added = incoming.filter(t => t.url && !existing.has(t.url));
+        trips = [...trips, ...added];
+        const skippedMsg = data.skipped?.length ? ` (${data.skipped.length} URL(s) ignoradas por dominio no soportado)` : '';
+        statusEl.innerHTML = `<div class="scan-summary">${added.length} viajes añadidos${skippedMsg}. Total: ${trips.length}.</div>`;
+      } else {
+        trips = incoming;
+        statusEl.innerHTML = `<div class="scan-summary">${trips.length} viajes encontrados.</div>`;
+      }
       renderTrips();
-      statusEl.innerHTML = `<div class="scan-summary">${trips.length} viajes encontrados.</div>`;
       btnScan.disabled = false;
+      btnOpenUrls.disabled = false;
       clearInterval(pollTimer);
       pollTimer = null;
     } else if (data.status === 'error') {
       statusEl.innerHTML = `<div class="scan-summary error">Error: ${data.error || 'desconocido'}</div>`;
       btnScan.disabled = false;
+      btnOpenUrls.disabled = false;
       clearInterval(pollTimer);
       pollTimer = null;
     }
@@ -60,7 +88,9 @@ async function pollStatus() {
 }
 
 btnScan.addEventListener('click', async () => {
+  scanMode = 'full';
   btnScan.disabled = true;
+  btnOpenUrls.disabled = true;
   tbody.innerHTML = '<tr class="empty"><td colspan="7">Buscando viajes...</td></tr>';
   renderProgress({});
   try {
@@ -69,6 +99,42 @@ btnScan.addEventListener('click', async () => {
   } catch (err) {
     statusEl.innerHTML = `<div class="scan-summary error">No se pudo iniciar: ${err.message}</div>`;
     btnScan.disabled = false;
+    btnOpenUrls.disabled = false;
+    return;
+  }
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollStatus, 2000);
+  pollStatus();
+});
+
+btnScanUrls.addEventListener('click', async () => {
+  const urls = urlsInput.value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (urls.length === 0) {
+    urlsInput.focus();
+    urlsInput.setCustomValidity?.('Pega al menos una URL');
+    urlsInput.reportValidity?.();
+    return;
+  }
+  urlsInput.setCustomValidity?.('');
+  urlsDialog.close();
+  scanMode = 'urls';
+  btnScan.disabled = true;
+  btnOpenUrls.disabled = true;
+  renderProgress({});
+  try {
+    const r = await fetch('/api/scan/urls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      throw new Error(data.error || `status ${r.status}`);
+    }
+  } catch (err) {
+    statusEl.innerHTML = `<div class="scan-summary error">No se pudo iniciar: ${err.message}</div>`;
+    btnScan.disabled = false;
+    btnOpenUrls.disabled = false;
     return;
   }
   if (pollTimer) clearInterval(pollTimer);
@@ -82,10 +148,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     const r = await fetch('/api/scan/status');
     const data = await r.json();
     if (data.status === 'running') {
+      scanMode = data.mode || 'full';
       btnScan.disabled = true;
+      btnOpenUrls.disabled = true;
       renderProgress(data.progressBySource || {});
       pollTimer = setInterval(pollStatus, 2000);
-    } else if (data.status === 'done' && data.trips) {
+    } else if (data.status === 'done' && data.trips && (data.mode || 'full') === 'full') {
       trips = data.trips;
       renderTrips();
       statusEl.innerHTML = `<div class="scan-summary">${trips.length} viajes del último escaneo. Pulsa "Escanear catálogos" para uno nuevo.</div>`;
