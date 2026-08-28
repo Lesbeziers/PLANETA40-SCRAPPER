@@ -1,8 +1,38 @@
+@font-face {
+  font-family: "Apercu";
+  src: url("../fonts/apercu_regular_movistar-web.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Apercu";
+  src: url("../fonts/apercu_regular_italic_movistar-web.woff") format("woff");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Apercu";
+  src: url("../fonts/apercu_black_movistar-web.woff") format("woff");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Apercu";
+  src: url("../fonts/apercu_black_italic_movistar-web.woff") format("woff");
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   --bg: #f7f7f5;
   --fg: #1c1c1c;
   --muted: #6b6b6b;
-  --accent: #2a6f4d;
+  --accent: #007dbf;
+  --accent-hover: #005f92;
   --border: #e2e2dd;
 }
 
@@ -10,35 +40,38 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "Apercu", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 400;
   background: var(--bg);
   color: var(--fg);
   line-height: 1.5;
 }
 
 header {
-  padding: 2rem 2rem 1rem;
+  padding: 1.5rem 2rem;
   border-bottom: 1px solid var(--border);
   background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
 }
 
-header h1 {
+.site-title {
   margin: 0;
-  font-size: 1.5rem;
-  letter-spacing: -0.01em;
+  font-size: 33pt;
+  font-weight: 900;
+  text-transform: uppercase;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  color: var(--fg);
 }
 
 header .logo {
   display: block;
-  height: 48px;
+  height: 60px;
   width: auto;
-  margin-bottom: 0.25rem;
-}
-
-.subtitle {
-  margin: 0.25rem 0 0;
-  color: var(--muted);
-  font-size: 0.95rem;
+  flex-shrink: 0;
 }
 
 main {
@@ -53,10 +86,14 @@ main {
 }
 
 button {
-  padding: 0.6rem 1rem;
-  font-size: 0.95rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   border: 1px solid var(--border);
   background: #fff;
+  color: var(--fg);
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s;
@@ -75,7 +112,8 @@ button:not(:disabled):hover {
 
 #btn-scan:hover:not(:disabled),
 #btn-open-urls:hover:not(:disabled) {
-  background: #235a3f;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 button:disabled {
@@ -103,7 +141,7 @@ button:disabled {
 }
 
 .progress-label {
-  font-weight: 500;
+  font-weight: 400;
   color: var(--fg);
 }
 
@@ -169,7 +207,7 @@ th, td {
 
 th {
   background: #fafaf7;
-  font-weight: 600;
+  font-weight: 900;
   color: var(--muted);
   font-size: 0.8rem;
   text-transform: uppercase;
@@ -238,7 +276,7 @@ tbody tr.trip-row.expanded { background: #eef4f0; }
 }
 
 .detail-list dt {
-  font-weight: 600;
+  font-weight: 900;
   color: var(--muted);
   font-size: 0.8rem;
   text-transform: uppercase;
@@ -320,22 +358,32 @@ tbody tr.trip-row.expanded { background: #eef4f0; }
 .urls-dialog .btn-primary {
   background: var(--accent);
   color: #fff;
-  border: none;
-  padding: 0.55rem 1.1rem;
-  border-radius: 4px;
+  border: 1px solid var(--accent);
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.urls-dialog .btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .urls-dialog .btn-secondary {
   background: transparent;
   color: var(--fg);
   border: 1px solid var(--border, #e4e4e0);
-  padding: 0.55rem 1.1rem;
-  border-radius: 4px;
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .urls-dialog .btn-secondary:hover {
