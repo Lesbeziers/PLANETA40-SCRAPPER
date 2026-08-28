@@ -243,7 +243,7 @@ function renderTrips() {
         <td>${escape(t.empresa)}</td>
         <td><a href="${escape(t.url)}" target="_blank" rel="noopener">${escape(t.titulo)}</a></td>
         <td>${escape(t.destino)}</td>
-        <td>${escape(t.precioDesde)}${t.precioHasta ? ' – ' + escape(t.precioHasta) : ''}</td>
+        <td>${formatPrice(t.precioDesde)}${t.precioHasta ? ' – ' + formatPrice(t.precioHasta) : ''}</td>
         <td>${escape(t.duracion)}</td>
         <td>${escape(t.salidas)}</td>
       </tr>
@@ -312,4 +312,12 @@ function escape(s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function formatPrice(v) {
+  if (v == null || v === '') return '';
+  const n = Number(String(v).replace(',', '.'));
+  if (!Number.isFinite(n)) return escape(String(v));
+  const withSep = String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return withSep + ' €';
 }
